@@ -48,6 +48,9 @@ const Project = mongoose.model('Project', new mongoose.Schema({
   github: String,
   demo: String,
   image: String,
+  poster: String,
+  video: String,
+  gallery: [new mongoose.Schema({ src: String, caption: String }, { _id: false })],
   order: { type: Number, default: 0 },
   published: { type: Boolean, default: true }
 }));
@@ -110,7 +113,7 @@ app.get('/api/health', (req, res) => res.json({ ok: true, db: mongoose.connectio
 app.get('/api/projects', dbReady, async (req, res) => {
   try {
     const items = await Project.find({ published: true }).sort({ order: 1, _id: 1 })
-      .select('-_id title category year tagline overview problem solution features stack challenges result github demo image').lean();
+      .select('-_id title category year tagline overview problem solution features stack challenges result github demo image poster video gallery').lean();
     res.set('Cache-Control', 'public, max-age=60').json(items);
   } catch (err) {
     console.error(err);
