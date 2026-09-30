@@ -262,6 +262,8 @@ html,body{overflow-x:clip}
 .thumbs button.on{border-color:var(--black)}
 .thumbs img{width:100%;height:100%;object-fit:cover;display:block}
 .thumbs .pl{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:1.1rem;background:rgba(0,0,0,.4)}
+.vfail{position:absolute;inset:0;display:grid;place-content:center;gap:.4rem;text-align:center;color:#fff;padding:1rem}
+.vfail p{margin:0}.vfail a{color:#fff;text-decoration:underline}.vfail .vp{color:var(--grey);font-size:.85rem}
 .cap{margin:.6rem 0 0;color:var(--grey);font-size:.9rem;min-height:1.4em}
 .c-play{position:absolute;left:.8rem;bottom:.8rem;z-index:2;padding:.35rem .7rem;background:rgba(10,10,10,.82);color:#fff;font-size:.78rem;font-weight:600;border:1px solid var(--line-w)}
 @media (max-width:700px){
@@ -535,7 +537,7 @@ html,body{overflow-x:clip}
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return '&#'+c.charCodeAt(0)+';';});}
   function link(v){return /^https?:\/\//.test(v||'')?esc(v):'';}
   function sp(v){return /^(?!\/)[\w\/.\-]+$/.test(v||'')?esc(v):'';}
-  function A(k){return (window.ASSETS&&window.ASSETS[k])||k;}
+  function A(k){var v=(window.ASSETS&&window.ASSETS[k])||k;if(/^data:video/.test(v)){A.c=A.c||{};if(!A.c[k]){var b=atob(v.split(',')[1]),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);A.c[k]=URL.createObjectURL(new Blob([u],{type:'video/mp4'}));}return A.c[k];}return v;}
   function norm(x){return{rt:String(x.title||''),t:esc(x.title),c:esc(x.category||'Web'),y:esc(x.year),tag:esc(x.tagline),o:esc(x.overview),p:esc(x.problem),b:esc(x.solution),f:(x.features||[]).map(esc),s:(x.stack||[]).map(esc),ch:esc(x.challenges),r:esc(x.result),gh:link(x.github),demo:link(x.demo),img:sp(x.image),vid:sp(x.video),poster:sp(x.poster),gal:(x.gallery||[]).map(function(g){return{s:sp(g.src),c:esc(g.caption)};}).filter(function(g){return g.s;})};}
   function rb(t,h,c){return '<a class="btn '+c+'" data-magnetic href="'+h+'" target="_blank" rel="noopener noreferrer"><span class="roll"><span data-t="'+t+'">'+t+'</span></span></a>';}
   function sec(h,x){return x?'<section class="pm-s"><h4>'+h+'</h4><p>'+x+'</p></section>':'';}
@@ -547,7 +549,11 @@ html,body{overflow-x:clip}
     var st=pmb.querySelector('.stage'),th=pmb.querySelector('.thumbs'),cp=pmb.querySelector('.cap'),cur=0;
     function show(i){
       cur=i;var it=m[i];st.innerHTML='';
-      if(it.k==='v'){var v=document.createElement('video');v.controls=true;v.playsInline=true;v.preload='metadata';if(it.th)v.poster=A(it.th);v.src=A(it.s);st.appendChild(v);}
+      if(it.k==='v'){
+        var v=document.createElement('video'),so=document.createElement('source');v.controls=true;v.playsInline=true;v.preload='metadata';if(it.th)v.poster=A(it.th);
+        so.src=A(it.s);so.type='video/mp4';v.appendChild(so);
+        so.addEventListener('error',function(){st.innerHTML='<div class="vfail"><p>The video could not be loaded.</p><p><a href="'+A(it.s)+'" target="_blank" rel="noopener">Open the video file directly</a></p><p class="vp">'+it.s+'</p></div>';});
+        st.appendChild(v);}
       else{var im=new Image();im.alt=p.rt+' screenshot';im.src=A(it.s);st.appendChild(im);}
       cp.innerHTML=it.c;
       Array.prototype.forEach.call(th.children,function(b,j){b.classList.toggle('on',j===i);b.setAttribute('aria-pressed',String(j===i));});
@@ -601,10 +607,19 @@ html,body{overflow-x:clip}
       fil.appendChild(b);
     });
   }
-  function load(u){return fetch(u).then(function(r){if(!r.ok)throw 0;return r.json();});}
+  function load(u){return fetch(u,{cache:'no-cache'}).then(function(r){if(!r.ok)throw 0;return r.json();});}
   if(isHttp){
     /* projects come from MongoDB, or from projects.json if the database is unavailable */
-    load('/api/projects').then(function(d){return Array.isArray(d)&&d.length?d:Promise.reject();}).catch(function(){return load('projects.json');}).then(render).catch(function(){});
+    /* text comes from MongoDB when available; images and video always come from projects.json, so an out-of-date database can never hide them */
+    Promise.all([load('projects.json').catch(function(){return [];}),load('/api/projects').catch(function(){return [];})]).then(function(r){
+      var js=r[0],db=r[1],base=db.length?db:js;
+      if(!base.length)return;
+      render(base.map(function(x){
+        var j=js.filter(function(y){return y.title===x.title;})[0];
+        if(j)['image','poster','video','gallery'].forEach(function(k){if(j[k]!=null)x[k]=j[k];});
+        return x;
+      }));
+    }).catch(function(){});
     /* hide the resume buttons until public/resume.pdf exists */
     fetch('resume.pdf',{method:'HEAD'}).then(function(r){if(!r.ok)throw 0;}).catch(function(){document.querySelectorAll('[data-resume]').forEach(function(a){a.hidden=true;});});
   }
