@@ -1,6 +1,7 @@
 (function(){
   function initPortfolioSpatialWorld(){
     var root=document.documentElement,reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var isMobile=window.matchMedia('(max-width: 768px)').matches||navigator.maxTouchPoints>0;
     var canvas=document.getElementById('model'),hero=document.querySelector('.hero'),stage=document.querySelector('.hero-stage');
     var navigation=document.querySelector('.hero-navigation'),nodes=Array.prototype.slice.call(document.querySelectorAll('.hero-node'));
     var readoutIndex=document.getElementById('world-index'),readoutTitle=document.getElementById('world-title');
@@ -14,13 +15,13 @@
     if(!canvas||!window.THREE||!THREE.GLTFLoader||!nodes.length)return;
 
     var renderer;
-    try{renderer=new THREE.WebGLRenderer({canvas:canvas,alpha:true,antialias:true,powerPreference:'high-performance'});}catch(error){return;}
+    try{renderer=new THREE.WebGLRenderer({canvas:canvas,alpha:true,antialias:!isMobile,powerPreference:isMobile?'low-power':'high-performance'});}catch(error){return;}
     renderer.setClearColor(0x000000,0);
     renderer.outputEncoding=THREE.sRGBEncoding;
     renderer.toneMapping=THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure=.8;
+    renderer.toneMappingExposure=isMobile?.7:.8;
 
-    var scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(30,1,.1,50);
+    var scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(isMobile?34:30,1,.1,50);
     var environment=new THREE.Scene();
     environment.background=new THREE.Color(0x050505);
     [[8,3,0,6,0,7],[3,8,-6,0,2,5],[3,8,6,0,-2,4],[10,2,0,-5,3,2],[6,6,0,1,-7,3]].forEach(function(light){
@@ -30,9 +31,9 @@
     var pmrem=new THREE.PMREMGenerator(renderer);
     scene.environment=pmrem.fromScene(environment,.03).texture;
     pmrem.dispose();
-    scene.add(new THREE.AmbientLight(0xffffff,.42));
-    var keyLight=new THREE.DirectionalLight(0xffffff,1.35);keyLight.position.set(-3,5,7);scene.add(keyLight);
-    var fillLight=new THREE.PointLight(0xffffff,18,18);fillLight.position.set(3,-2,5);scene.add(fillLight);
+    scene.add(new THREE.AmbientLight(0xffffff,isMobile?.28:.42));
+    var keyLight=new THREE.DirectionalLight(0xffffff,isMobile?.9:1.35);keyLight.position.set(-3,5,7);scene.add(keyLight);
+    var fillLight=new THREE.PointLight(0xffffff,isMobile?10:18,isMobile?12:18);fillLight.position.set(3,-2,5);scene.add(fillLight);
 
     var cameraStops=[],models=[],activeIndex=-1,rawProgress=0,currentProgress=0,frameId=0,visible=true;
     var pointerX=0,pointerY=0,targetPointerX=0,targetPointerY=0,focusUntil=0;
@@ -49,11 +50,12 @@
       var halfWidth=halfHeight*camera.aspect;
       models.forEach(function(item){
         var depthScale=(defaultZ-item.depth)/defaultZ;
-        item.homeX=(item.x/100-.5)*halfWidth*2*depthScale;
-        item.homeY=(.5-item.y/100)*halfHeight*2*depthScale;
+        var itemX=isMobile?50:item.x,itemY=isMobile?50:item.y;
+        item.homeX=(itemX/100-.5)*halfWidth*2*depthScale;
+        item.homeY=(.5-itemY/100)*halfHeight*2*depthScale;
         var zoomZ=item.zoomZ,objectDistance=zoomZ-item.depth;
-        var aimX=item.index%2===0?.39:.34;
-        var aimY=item.index===3?-.06:.03;
+        var aimX=isMobile?0:item.index%2===0?.39:.34;
+        var aimY=isMobile?0:item.index===3?-.06:.03;
         cameraStops[item.index]={
           x:item.homeX-aimX*objectDistance*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*camera.aspect,
           y:item.homeY-aimY*objectDistance*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)),
@@ -64,7 +66,7 @@
     function layout(){
       var width=canvas.clientWidth,height=canvas.clientHeight;
       if(!width||!height)return;
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,root.classList.contains('fx-full')?1.5:1.15));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,isMobile?1:root.classList.contains('fx-full')?1.5:1.15));
       renderer.setSize(width,height,false);
       camera.aspect=width/height;
       camera.updateProjectionMatrix();
@@ -186,7 +188,7 @@
           var content=gltf.scene;content.updateMatrixWorld(true);
           var bounds=new THREE.Box3().setFromObject(content),center=bounds.getCenter(new THREE.Vector3()),dimensions=bounds.getSize(new THREE.Vector3());
           var modelScale=Number(node.dataset.size)*1.18/Math.max(dimensions.x,dimensions.y,dimensions.z);
-          content.position.copy(center).negate().multiplyScalar(modelScale);content.scale.setScalar(modelScale);
+          content.position.copy(center).negate().multiplyScalar(modelScale);content.scale.setScalar(isMobile?modelScale*.8:modelScale);
           var group=new THREE.Group();group.visible=false;group.add(content);scene.add(group);
           models.push({group:group,index:index,x:Number(node.dataset.x),y:Number(node.dataset.y),depth:Number(node.dataset.depth),zoomZ:[5.35,5.65,5.3,5.55][index],rotX:[.12,-.18,.2,-.1][index],rotY:[-.35,.42,-.6,.25][index],rotZ:[-.15,.1,.12,-.2][index],phase:index*1.45,homeX:0,homeY:0});
           resolve(true);

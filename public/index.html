@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
-<script>(function(d){d.classList.add("js","loading");setTimeout(function(){if(!window.__ok)d.classList.remove("js","loading")},4000);var m=matchMedia,n=navigator,c=n.connection||{},k=n.hardwareConcurrency||4;if(m("(min-width:1024px) and (hover:hover) and (pointer:fine)").matches&&!m("(prefers-reduced-motion:reduce)").matches){d.classList.add("fx");if(k>=4&&!c.saveData){d.classList.add("fx3d");if(innerWidth>=1440&&innerHeight>=760&&k>=6)d.classList.add("fx-full")}}})(document.documentElement);</script>
+<script>(function(d){d.classList.add("js","loading");setTimeout(function(){if(!window.__ok)d.classList.remove("js","loading")},4000);var m=matchMedia,n=navigator,c=n.connection||{},k=n.hardwareConcurrency||4,desktop=m("(min-width:1024px) and (hover:hover) and (pointer:fine)").matches;if(!m("(prefers-reduced-motion:reduce)").matches){if(desktop)d.classList.add("fx");d.classList.add("fx3d");if(desktop&&innerWidth>=1440&&innerHeight>=760&&k>=6&&!c.saveData)d.classList.add("fx-full")}})(document.documentElement);</script>
 </head>
 <body>
 <div class="loader" id="loader" role="status" aria-live="polite">
