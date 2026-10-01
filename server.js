@@ -14,11 +14,11 @@ app.use(helmet({
     useDefaults: false,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ['https://fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'"]
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'", 'blob:']
     }
   }
 }));
@@ -70,6 +70,7 @@ const mailer = process.env.SMTP_USER && process.env.SMTP_PASS
   ? nodemailer.createTransport({ host: process.env.SMTP_HOST || 'smtp.gmail.com', port: smtpPort, secure: smtpPort === 465,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } })
   : null;
+if (!mailer) console.warn('Email delivery is disabled. Configure SMTP_USER and SMTP_PASS to receive contact inquiries by email.');
 
 async function sendEmail({ name, email, type, message }) {
   if (!mailer) return false;

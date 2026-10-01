@@ -7,8 +7,7 @@
     "overview": "An AI-powered web app that turns a single image into an interactive 3D model. You upload a picture, the server generates the model with the Neural4D API, and the result opens in a 3D viewer in your browser.",
     "problem": "Making a 3D model by hand takes specialist software and hours of work. I wanted anyone to be able to get a usable 3D model from one picture.",
     "solution": "A Node.js backend that receives the upload, sends it to the Neural4D API and waits for the result, plus a Three.js viewer that displays the model and lets you download it as a .glb file.",
-    "features":
-     [
+    "features": [
       "Upload PNG, JPEG or WebP images up to 10 MB",
       "3D model generation with the Neural4D API",
       "Interactive viewer with orbit, pan and zoom",
@@ -30,8 +29,8 @@
     "demo": "",
     "image": "img/image-to-3d-viewer.webp",
     "poster": "img/image-to-3d-viewer.webp",
-"video": "img/image-to-3d.mp4",   
- "gallery": [
+    "video": "video/image-to-3d.mp4",
+    "gallery": [
       {
         "src": "img/image-to-3d-viewer.webp",
         "caption": "Interactive 3D viewer with orbit, pan and zoom, plus live vertex and face counts"
