@@ -30,7 +30,8 @@
     "demo": "",
     "image": "img/image-to-3d-viewer.webp",
     "poster": "img/image-to-3d-viewer.webp",
-"video": "img/image-to-3d.mp4",    "gallery": [
+"video": "img/image-to-3d.mp4",   
+ "gallery": [
       {
         "src": "img/image-to-3d-viewer.webp",
         "caption": "Interactive 3D viewer with orbit, pan and zoom, plus live vertex and face counts"
