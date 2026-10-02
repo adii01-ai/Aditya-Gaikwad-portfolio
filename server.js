@@ -68,11 +68,11 @@ const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const resendApiKey = process.env.RESEND_API_KEY;
 const emailFrom = process.env.EMAIL_FROM;
 const mailTo = process.env.MAIL_TO || process.env.SMTP_USER;
-const smtpPort = Number(process.env.SMTP_PORT) || 465;
+const smtpPort = Number(process.env.SMTP_PORT) || 587;
 const mailer = process.env.SMTP_USER && process.env.SMTP_PASS
-  ? nodemailer.createTransport({ host: process.env.SMTP_HOST || 'smtp.gmail.com', port: smtpPort, secure: smtpPort === 465,
+  ? nodemailer.createTransport({ host: process.env.SMTP_HOST || 'smtp.gmail.com', port: smtpPort, secure: false, requireTLS: true,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000 })
+      connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 })
   : null;
 const emailConfigured = resendApiKey
   ? Boolean(emailFrom && mailTo)
@@ -131,7 +131,11 @@ async function sendEmail({ name, email, type, message }) {
     });
     return true;
   } catch (err) {
-    console.error('Email error:', err.message);
+    console.error('Email error:', {
+      message: err.message,
+      code: err.code,
+      command: err.command
+    });
     return false;
   }
 }
