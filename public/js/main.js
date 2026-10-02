@@ -334,19 +334,30 @@
       .then(function(r){return r.json().catch(function(){return {};}).then(function(result){if(!r.ok){var error=new Error(result.error||'Your inquiry could not be sent. Please try again.');error.saved=!!result.saved;throw error;}return result;});});
     var accessKey=window.PORTFOLIO_CONFIG&&window.PORTFOLIO_CONFIG.web3formsAccessKey;
     var emailRequest=website?Promise.resolve({success:true}):(function(){
-      if(!accessKey)return Promise.reject(new Error('Email delivery failed. Please try again in a moment.'));
+      if(!accessKey)return Promise.reject(new Error('Web3Forms could not send your inquiry. Please try again in a moment.'));
       var received=new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'}).format(new Date());
       return fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({access_key:accessKey,name:n,email:m,replyto:m,subject:'New '+ptype+' enquiry from '+n,message:'Project type: '+ptype+'\nName: '+n+'\nEmail: '+m+'\nReceived time: '+received+' IST\n\nMessage:\n'+g})})
         .then(function(r){return r.json().catch(function(){return {};}).then(function(response){if(!r.ok||!response.success)throw new Error(response.message||'Web3Forms submission failed');return response;});})
-        .catch(function(){throw new Error('Email delivery failed. Please try again in a moment.');});
+        .catch(function(){throw new Error('Web3Forms could not send your inquiry. Please try again in a moment.');});
     })();
     Promise.all([
       serverRequest.then(function(result){return {ok:true,result:result};},function(error){return {ok:false,error:error};}),
       emailRequest.then(function(result){return {ok:true,result:result};},function(error){return {ok:false,error:error};})
     ]).then(function(results){
         var serverResult=results[0],emailResult=results[1];
-        if(!emailResult.ok){emailResult.error.saved=!!(serverResult.ok&&serverResult.result.saved);throw emailResult.error;}
-        if(!serverResult.ok)throw serverResult.error;
+        if(!emailResult.ok){
+          if(!serverResult.ok){emailResult.error.message='Web3Forms could not send your email, and the inquiry could not be processed. Please try again or email me directly.';}
+          emailResult.error.saved=!!(serverResult.ok&&serverResult.result.saved);
+          throw emailResult.error;
+        }
+        if(!serverResult.ok){
+          setFormStatus('Your email was sent, but the inquiry could not be saved by the portfolio server. Please contact me directly if needed.','error');
+          return;
+        }
+        if(!serverResult.result.saved){
+          setFormStatus('Your email was sent, but the inquiry could not be saved to the database.','error');
+          return;
+        }
         setFormStatus('Your inquiry was sent to my inbox. I will reply by email.','success');
         done();
       })
