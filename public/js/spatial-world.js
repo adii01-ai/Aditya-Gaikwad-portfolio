@@ -1,7 +1,7 @@
 (function(){
   function initPortfolioSpatialWorld(){
     var root=document.documentElement,reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    var isMobile=window.matchMedia('(max-width: 768px)').matches||navigator.maxTouchPoints>0;
+    var isMobile=window.matchMedia('(max-width: 768px)').matches;
     var canvas=document.getElementById('model'),hero=document.querySelector('.hero'),stage=document.querySelector('.hero-stage');
     var navigation=document.querySelector('.hero-navigation'),nodes=Array.prototype.slice.call(document.querySelectorAll('.hero-node'));
     var readoutIndex=document.getElementById('world-index'),readoutTitle=document.getElementById('world-title');
@@ -54,8 +54,8 @@
         item.homeX=(itemX/100-.5)*halfWidth*2*depthScale;
         item.homeY=(.5-itemY/100)*halfHeight*2*depthScale;
         var zoomZ=item.zoomZ,objectDistance=zoomZ-item.depth;
-        var aimX=isMobile?0:item.index%2===0?.39:.34;
-        var aimY=isMobile?0:item.index===3?-.06:.03;
+        var aimX=isMobile?0:item.index%2===0?.46:.42;
+        var aimY=isMobile?-.34:item.index===3?-.06:.03;
         cameraStops[item.index]={
           x:item.homeX-aimX*objectDistance*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*camera.aspect,
           y:item.homeY-aimY*objectDistance*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)),

@@ -83,8 +83,13 @@
     <div class="work-controls" data-reveal data-io>
       <div class="tabs" id="filters" role="group" aria-label="Filter projects"></div>
       <p class="work-count" id="work-count" role="status" aria-live="polite"></p>
+      <div class="work-scroll-controls" id="work-scroll-controls" aria-label="Project card navigation" hidden>
+        <button type="button" id="work-prev" aria-label="Scroll to previous projects">&larr;</button>
+        <span>DRAG OR SCROLL</span>
+        <button type="button" id="work-next" aria-label="Scroll to next projects">&rarr;</button>
+      </div>
     </div>
-    <div class="projs" id="projs"></div>
+    <div class="projs" id="projs" role="region" aria-label="Selected work projects" tabindex="0"></div>
     <div class="actions more" data-reveal data-io><a class="btn" data-magnetic href="https://github.com/adii01-ai" target="_blank" rel="noopener noreferrer"><span class="roll"><span data-t="More on GitHub">More on GitHub</span></span></a></div>
   </section>
 
