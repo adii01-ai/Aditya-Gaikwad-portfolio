@@ -61,33 +61,73 @@ const dbReady = (req, res, next) =>
 const contactLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Emails every enquiry to you. Set SMTP_USER and SMTP_PASS (a Gmail app password) in .env.
+// Prefer an HTTPS mail API on hosts that block outbound SMTP; SMTP remains available locally.
 const TYPES = ['Website', 'Software', 'Application', 'Other'];
 const clean = (t) => String(t).replace(/[\r\n]+/g, ' ').trim();
 const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const resendApiKey = process.env.RESEND_API_KEY;
+const emailFrom = process.env.EMAIL_FROM;
+const mailTo = process.env.MAIL_TO || process.env.SMTP_USER;
 const smtpPort = Number(process.env.SMTP_PORT) || 465;
 const mailer = process.env.SMTP_USER && process.env.SMTP_PASS
   ? nodemailer.createTransport({ host: process.env.SMTP_HOST || 'smtp.gmail.com', port: smtpPort, secure: smtpPort === 465,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
       connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000 })
   : null;
-if (!mailer) console.warn('Email delivery is disabled. Configure SMTP_USER and SMTP_PASS to receive contact inquiries by email.');
+const emailConfigured = resendApiKey
+  ? Boolean(emailFrom && mailTo)
+  : Boolean(mailer);
+if (!emailConfigured) {
+  console.warn('Email delivery is disabled. Configure RESEND_API_KEY, EMAIL_FROM, and MAIL_TO, or SMTP_USER and SMTP_PASS.');
+}
 
 async function sendEmail({ name, email, type, message }) {
-  if (!mailer) return false;
   const when = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' });
   const row = (k, val) => `<tr><td style="padding:6px 16px 6px 0;color:#777">${k}</td><td style="padding:6px 0"><b>${val}</b></td></tr>`;
+  const subject = `New ${type} enquiry from ${clean(name)}`;
+  const text = `New enquiry from your portfolio\n\nName: ${name}\nEmail: ${email}\nProject type: ${type}\nReceived: ${when} (IST)\n\nMessage:\n${message}\n`;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:560px"><h2 style="margin:0 0 12px">New ${esc(type)} enquiry</h2>` +
+    `<table>${row('Name', esc(name))}${row('Email', esc(email))}${row('Project type', esc(type))}${row('Received', esc(when) + ' IST')}</table>` +
+    `<p style="margin:16px 0 4px;color:#777">Message</p><p style="white-space:pre-wrap;margin:0">${esc(message)}</p>` +
+    `<p style="margin-top:20px;color:#777;font-size:13px">Press Reply to answer ${esc(name)} directly.</p></div>`;
+
+  if (resendApiKey) {
+    if (!emailConfigured) return false;
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: emailFrom,
+          to: [mailTo],
+          reply_to: `"${clean(name).replace(/"/g, '')}" <${email}>`,
+          subject,
+          text,
+          html
+        }),
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!response.ok) {
+        const details = (await response.text()).slice(0, 500);
+        console.error('Resend email error:', response.status, details);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Resend email error:', err.message);
+      return false;
+    }
+  }
+
+  if (!mailer) return false;
   try {
     await mailer.sendMail({
       from: `"Portfolio" <${process.env.SMTP_USER}>`,
-      to: process.env.MAIL_TO || process.env.SMTP_USER,
+      to: mailTo,
       replyTo: `"${clean(name).replace(/"/g, '')}" <${email}>`,
-      subject: `New ${type} enquiry from ${clean(name)}`,
-      text: `New enquiry from your portfolio\n\nName: ${name}\nEmail: ${email}\nProject type: ${type}\nReceived: ${when} (IST)\n\nMessage:\n${message}\n`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:560px"><h2 style="margin:0 0 12px">New ${esc(type)} enquiry</h2>` +
-        `<table>${row('Name', esc(name))}${row('Email', esc(email))}${row('Project type', esc(type))}${row('Received', esc(when) + ' IST')}</table>` +
-        `<p style="margin:16px 0 4px;color:#777">Message</p><p style="white-space:pre-wrap;margin:0">${esc(message)}</p>` +
-        `<p style="margin-top:20px;color:#777;font-size:13px">Press Reply to answer ${esc(name)} directly.</p></div>`
+      subject,
+      text,
+      html
     });
     return true;
   } catch (err) {
@@ -143,7 +183,7 @@ app.post('/api/contact', contactLimit, async (req, res) => {
       ok: false,
       emailed: false,
       saved,
-      error: mailer
+      error: emailConfigured
         ? 'Email delivery failed. Please try again in a moment.'
         : 'Email delivery is not configured yet. Please use the direct email link.'
     });
