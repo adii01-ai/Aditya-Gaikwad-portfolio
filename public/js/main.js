@@ -330,24 +330,23 @@
     if(contactInFlight)return;
     contactInFlight=true;
     sb.disabled=true;setFormStatus('Sending your inquiry securely...','pending');
-    fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:ptype,name:n,email:m,message:g,website:website})})
-      .then(function(r){
-        return r.json().catch(function(){return {};}).then(function(result){
-          if(!r.ok){var error=new Error(result.error||'Your inquiry could not be sent. Please try again.');error.saved=!!result.saved;throw error;}
-          return result;
-        });
-      })
-      .then(function(result){
-        if(website)return {honeypot:true};
-        var accessKey=window.PORTFOLIO_CONFIG&&window.PORTFOLIO_CONFIG.web3formsAccessKey;
-        if(!accessKey){var missingKey=new Error('Email delivery failed. Please try again in a moment.');missingKey.saved=!!result.saved;throw missingKey;}
-        var received=new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'}).format(new Date());
-        return fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({access_key:accessKey,name:n,email:m,replyto:m,subject:'New '+ptype+' enquiry from '+n,message:'Project type: '+ptype+'\nName: '+n+'\nEmail: '+m+'\nReceived time: '+received+' IST\n\nMessage:\n'+g})})
-          .then(function(r){return r.json().catch(function(){return {};}).then(function(response){if(!r.ok||!response.success)throw new Error('Web3Forms submission failed');return {sent:true};});})
-          .catch(function(){var emailError=new Error('Email delivery failed. Please try again in a moment.');emailError.saved=!!result.saved;throw emailError;});
-      })
-      .then(function(result){
-        if(!result)return;
+    var serverRequest=fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:ptype,name:n,email:m,message:g,website:website})})
+      .then(function(r){return r.json().catch(function(){return {};}).then(function(result){if(!r.ok){var error=new Error(result.error||'Your inquiry could not be sent. Please try again.');error.saved=!!result.saved;throw error;}return result;});});
+    var accessKey=window.PORTFOLIO_CONFIG&&window.PORTFOLIO_CONFIG.web3formsAccessKey;
+    var emailRequest=website?Promise.resolve({success:true}):(function(){
+      if(!accessKey)return Promise.reject(new Error('Email delivery failed. Please try again in a moment.'));
+      var received=new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'}).format(new Date());
+      return fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({access_key:accessKey,name:n,email:m,replyto:m,subject:'New '+ptype+' enquiry from '+n,message:'Project type: '+ptype+'\nName: '+n+'\nEmail: '+m+'\nReceived time: '+received+' IST\n\nMessage:\n'+g})})
+        .then(function(r){return r.json().catch(function(){return {};}).then(function(response){if(!r.ok||!response.success)throw new Error(response.message||'Web3Forms submission failed');return response;});})
+        .catch(function(){throw new Error('Email delivery failed. Please try again in a moment.');});
+    })();
+    Promise.all([
+      serverRequest.then(function(result){return {ok:true,result:result};},function(error){return {ok:false,error:error};}),
+      emailRequest.then(function(result){return {ok:true,result:result};},function(error){return {ok:false,error:error};})
+    ]).then(function(results){
+        var serverResult=results[0],emailResult=results[1];
+        if(!emailResult.ok){emailResult.error.saved=!!(serverResult.ok&&serverResult.result.saved);throw emailResult.error;}
+        if(!serverResult.ok)throw serverResult.error;
         setFormStatus('Your inquiry was sent to my inbox. I will reply by email.','success');
         done();
       })
