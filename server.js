@@ -60,56 +60,7 @@ const dbReady = (req, res, next) =>
 const contactLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Send contact enquiries through Web3Forms over HTTPS.
 const TYPES = ['Website', 'Software', 'Application', 'Other'];
-const clean = (t) => String(t).replace(/[\r\n]+/g, ' ').trim();
-const web3formsAccessKey = process.env.WEB3FORMS_ACCESS_KEY;
-const mailTo = process.env.MAIL_TO;
-const emailConfigured = Boolean(web3formsAccessKey && mailTo);
-if (!emailConfigured) console.warn('Email delivery is disabled. Configure WEB3FORMS_ACCESS_KEY and MAIL_TO.');
-
-async function sendEmail({ name, email, type, message }) {
-  if (!emailConfigured) return false;
-  const when = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' });
-  const subject = `New ${type} enquiry from ${clean(name)}`;
-  try {
-    const response = await fetch('https://api.web3forms.com/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        access_key: web3formsAccessKey,
-        subject,
-        from_name: clean(name),
-        email,
-        replyto: email,
-        ccemail: mailTo,
-        message: `Name: ${name}\nEmail: ${email}\nProject type: ${type}\nReceived: ${when} (IST)\n\nMessage:\n${message}`
-      }),
-      signal: AbortSignal.timeout(15000)
-    });
-
-    let result;
-    try {
-      result = await response.json();
-    } catch {
-      console.error('Web3Forms email error:', { status: response.status, message: 'Invalid API response' });
-      return false;
-    }
-
-    if (!response.ok || result.success !== true) {
-      console.error('Web3Forms email error:', {
-        status: response.status,
-        message: typeof result.message === 'string' ? result.message.slice(0, 300) : 'Submission failed'
-      });
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('Web3Forms email error:', { message: err.message });
-    return false;
-  }
-}
-
 // Sends you a WhatsApp alert through CallMeBot. Best effort: the message is already saved in MongoDB.
 async function notifyWhatsApp(text) {
   const { WHATSAPP_PHONE, CALLMEBOT_APIKEY } = process.env;
@@ -151,19 +102,8 @@ app.post('/api/contact', contactLimit, async (req, res) => {
   if (mongoose.connection.readyState === 1) {
     try { await Message.create({ name, email, type, message, ip: req.ip }); saved = true; } catch (err) { console.error(err); }
   }
-  const emailed = await sendEmail({ name, email, type, message });
-  if (!emailed) {
-    return res.status(503).json({
-      ok: false,
-      emailed: false,
-      saved,
-      error: emailConfigured
-        ? 'Email delivery failed. Please try again in a moment.'
-        : 'Email delivery is not configured yet. Please use the direct email link.'
-    });
-  }
   notifyWhatsApp(`New ${type} enquiry\nName: ${name}\nEmail: ${email}\nMessage: ${message.slice(0, 600)}`);
-  res.status(201).json({ ok: true, saved, emailed: true });
+  res.status(201).json({ ok: true, saved });
 });
 
 app.use(express.static(path.join(__dirname, 'public')));

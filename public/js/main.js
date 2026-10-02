@@ -283,9 +283,10 @@
     fetch('resume.pdf',{method:'HEAD'}).then(function(r){if(!r.ok)throw 0;}).catch(function(){document.querySelectorAll('[data-resume]').forEach(function(a){a.hidden=true;});});
   }
 
-  /* Send enquiries through the server and only report success when email delivery is confirmed. */
+  /* Save enquiries through the server, then send email directly through Web3Forms. */
   var cf=document.getElementById('cform'),fst=document.getElementById('fstatus');
   var contactEmail='adityagaikwad4434@gmail.com';
+  var contactInFlight=false;
   var HINT={Website:'Who is it for, what pages or features do you need, and any sites you like?',Software:'What should it do, who will use it, and what problem does it solve?',Application:'Web or mobile app? Describe the main features and who it is for.',Other:'Tell me about your idea and what you need.'};
   var ptype='Website',fm=document.getElementById('fm'),cnt=document.getElementById('cnt'),radios=cf.querySelectorAll('.type-row [role=radio]');
   function setType(t){ptype=t;fm.placeholder=HINT[t];Array.prototype.forEach.call(radios,function(b){b.setAttribute('aria-checked',String(b.dataset.t===t));});}
@@ -319,14 +320,17 @@
   cf.addEventListener('submit',function(e){
     e.preventDefault();
     var d=new FormData(cf),n=String(d.get('name')).trim(),m=String(d.get('email')).trim(),g=String(d.get('message')).trim(),sb=cf.querySelector('[type=submit]');
+    var website=String(d.get('website')||'');
     function done(){cf.reset();setType('Website');cnt.textContent='0 / 1500';}
     if(!isHttp){
       window.location.href='mailto:'+contactEmail+'?subject='+encodeURIComponent('New '+ptype+' enquiry from '+n)+'&body='+encodeURIComponent('Project type: '+ptype+'\nName: '+n+'\nEmail: '+m+'\n\n'+g);
       showDeliveryError(new Error('Opening your email app. If it does not open, use the direct email link.'));
       return;
     }
+    if(contactInFlight)return;
+    contactInFlight=true;
     sb.disabled=true;setFormStatus('Sending your inquiry securely...','pending');
-    fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:ptype,name:n,email:m,message:g,website:String(d.get('website')||'')})})
+    fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:ptype,name:n,email:m,message:g,website:website})})
       .then(function(r){
         return r.json().catch(function(){return {};}).then(function(result){
           if(!r.ok){var error=new Error(result.error||'Your inquiry could not be sent. Please try again.');error.saved=!!result.saved;throw error;}
@@ -334,7 +338,16 @@
         });
       })
       .then(function(result){
-        if(!result.emailed)throw new Error('The server did not confirm email delivery.');
+        if(website)return {honeypot:true};
+        var accessKey=window.PORTFOLIO_CONFIG&&window.PORTFOLIO_CONFIG.web3formsAccessKey;
+        if(!accessKey){var missingKey=new Error('Email delivery failed. Please try again in a moment.');missingKey.saved=!!result.saved;throw missingKey;}
+        var received=new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'}).format(new Date());
+        return fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({access_key:accessKey,name:n,email:m,replyto:m,subject:'New '+ptype+' enquiry from '+n,message:'Project type: '+ptype+'\nName: '+n+'\nEmail: '+m+'\nReceived time: '+received+' IST\n\nMessage:\n'+g})})
+          .then(function(r){return r.json().catch(function(){return {};}).then(function(response){if(!r.ok||!response.success)throw new Error('Web3Forms submission failed');return {sent:true};});})
+          .catch(function(){var emailError=new Error('Email delivery failed. Please try again in a moment.');emailError.saved=!!result.saved;throw emailError;});
+      })
+      .then(function(result){
+        if(!result)return;
         setFormStatus('Your inquiry was sent to my inbox. I will reply by email.','success');
         done();
       })
@@ -345,7 +358,7 @@
         }
         showDeliveryError(error);
       })
-      .then(function(){sb.disabled=false;});
+      .then(function(){contactInFlight=false;sb.disabled=false;});
   });
 
   if('IntersectionObserver' in window){
