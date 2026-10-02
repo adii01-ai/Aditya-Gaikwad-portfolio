@@ -68,7 +68,8 @@ const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const smtpPort = Number(process.env.SMTP_PORT) || 465;
 const mailer = process.env.SMTP_USER && process.env.SMTP_PASS
   ? nodemailer.createTransport({ host: process.env.SMTP_HOST || 'smtp.gmail.com', port: smtpPort, secure: smtpPort === 465,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } })
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000 })
   : null;
 if (!mailer) console.warn('Email delivery is disabled. Configure SMTP_USER and SMTP_PASS to receive contact inquiries by email.');
 
@@ -137,9 +138,18 @@ app.post('/api/contact', contactLimit, async (req, res) => {
     try { await Message.create({ name, email, type, message, ip: req.ip }); saved = true; } catch (err) { console.error(err); }
   }
   const emailed = await sendEmail({ name, email, type, message });
-  if (!saved && !emailed) return res.status(503).json({ ok: false, error: 'Could not deliver the message' });
+  if (!emailed) {
+    return res.status(503).json({
+      ok: false,
+      emailed: false,
+      saved,
+      error: mailer
+        ? 'Email delivery failed. Please try again in a moment.'
+        : 'Email delivery is not configured yet. Please use the direct email link.'
+    });
+  }
   notifyWhatsApp(`New ${type} enquiry\nName: ${name}\nEmail: ${email}\nMessage: ${message.slice(0, 600)}`);
-  res.status(201).json({ ok: true, saved, emailed });
+  res.status(201).json({ ok: true, saved, emailed: true });
 });
 
 app.use(express.static(path.join(__dirname, 'public')));

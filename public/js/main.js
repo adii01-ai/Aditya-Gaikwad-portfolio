@@ -283,8 +283,9 @@
     fetch('resume.pdf',{method:'HEAD'}).then(function(r){if(!r.ok)throw 0;}).catch(function(){document.querySelectorAll('[data-resume]').forEach(function(a){a.hidden=true;});});
   }
 
-  /* contact form: opens the visitor's email app with the message filled in */
+  /* Send enquiries through the server and only report success when email delivery is confirmed. */
   var cf=document.getElementById('cform'),fst=document.getElementById('fstatus');
+  var contactEmail='adityagaikwad4434@gmail.com';
   var HINT={Website:'Who is it for, what pages or features do you need, and any sites you like?',Software:'What should it do, who will use it, and what problem does it solve?',Application:'Web or mobile app? Describe the main features and who it is for.',Other:'Tell me about your idea and what you need.'};
   var ptype='Website',fm=document.getElementById('fm'),cnt=document.getElementById('cnt'),radios=cf.querySelectorAll('.type-row [role=radio]');
   function setType(t){ptype=t;fm.placeholder=HINT[t];Array.prototype.forEach.call(radios,function(b){b.setAttribute('aria-checked',String(b.dataset.t===t));});}
@@ -300,17 +301,50 @@
   Array.prototype.forEach.call(document.querySelectorAll('[data-type]'),function(a){a.addEventListener('click',function(){setType(a.dataset.type);});});
   setType('Website');
   fm.addEventListener('input',function(){cnt.textContent=fm.value.length+' / 1500';});
+  function setFormStatus(message,state){
+    fst.dataset.state=state||'';
+    fst.textContent=message;
+  }
+  function showDeliveryError(error){
+    var saved=!!(error&&error.saved);
+    setFormStatus(error&&error.message?error.message:'Your inquiry could not be sent. Please try again.', 'error');
+    if(saved)fst.appendChild(document.createTextNode(' Your inquiry is saved, but it has not reached my inbox.'));
+    fst.appendChild(document.createTextNode(' You can email me directly at '));
+    var directLink=document.createElement('a');
+    directLink.href='mailto:'+contactEmail;
+    directLink.textContent=contactEmail;
+    fst.appendChild(directLink);
+    fst.appendChild(document.createTextNode('.'));
+  }
   cf.addEventListener('submit',function(e){
     e.preventDefault();
     var d=new FormData(cf),n=String(d.get('name')).trim(),m=String(d.get('email')).trim(),g=String(d.get('message')).trim(),sb=cf.querySelector('[type=submit]');
     function done(){cf.reset();setType('Website');cnt.textContent='0 / 1500';}
-    function viaMail(){window.location.href='mailto:adityagaikwad4434@gmail.com?subject='+encodeURIComponent('New '+ptype+' enquiry from '+n)+'&body='+encodeURIComponent('Project type: '+ptype+'\nName: '+n+'\nEmail: '+m+'\n\n'+g);fst.textContent='Opening your email app. If nothing opens, write to adityagaikwad4434@gmail.com.';}
-    if(!isHttp){viaMail();done();return;}
-    sb.disabled=true;fst.textContent='Sending...';
+    if(!isHttp){
+      window.location.href='mailto:'+contactEmail+'?subject='+encodeURIComponent('New '+ptype+' enquiry from '+n)+'&body='+encodeURIComponent('Project type: '+ptype+'\nName: '+n+'\nEmail: '+m+'\n\n'+g);
+      showDeliveryError(new Error('Opening your email app. If it does not open, use the direct email link.'));
+      return;
+    }
+    sb.disabled=true;setFormStatus('Sending your inquiry securely...','pending');
     fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:ptype,name:n,email:m,message:g,website:String(d.get('website')||'')})})
-      .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
-      .then(function(result){if(!result.emailed){viaMail();return;}fst.textContent='Thanks, your message was emailed successfully. I will reply by email.';done();})
-      .catch(function(){viaMail();})
+      .then(function(r){
+        return r.json().catch(function(){return {};}).then(function(result){
+          if(!r.ok){var error=new Error(result.error||'Your inquiry could not be sent. Please try again.');error.saved=!!result.saved;throw error;}
+          return result;
+        });
+      })
+      .then(function(result){
+        if(!result.emailed)throw new Error('The server did not confirm email delivery.');
+        setFormStatus('Your inquiry was sent to my inbox. I will reply by email.','success');
+        done();
+      })
+      .catch(function(error){
+        console.error('Contact form submission failed:',error);
+        if(error instanceof TypeError&&error.message==='Failed to fetch'){
+          error=new Error('Could not connect to the portfolio server. Please check that the site is online and try again.');
+        }
+        showDeliveryError(error);
+      })
       .then(function(){sb.disabled=false;});
   });
 
