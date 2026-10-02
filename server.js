@@ -5,7 +5,6 @@ const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const mongoose = require('mongoose');
-const nodemailer = require('nodemailer');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -61,81 +60,52 @@ const dbReady = (req, res, next) =>
 const contactLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Prefer an HTTPS mail API on hosts that block outbound SMTP; SMTP remains available locally.
+// Send contact enquiries through Web3Forms over HTTPS.
 const TYPES = ['Website', 'Software', 'Application', 'Other'];
 const clean = (t) => String(t).replace(/[\r\n]+/g, ' ').trim();
-const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const resendApiKey = process.env.RESEND_API_KEY;
-const emailFrom = process.env.EMAIL_FROM;
-const mailTo = process.env.MAIL_TO || process.env.SMTP_USER;
-const smtpPort = Number(process.env.SMTP_PORT) || 587;
-const mailer = process.env.SMTP_USER && process.env.SMTP_PASS
-  ? nodemailer.createTransport({ host: process.env.SMTP_HOST || 'smtp.gmail.com', port: smtpPort, secure: false, requireTLS: true,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 })
-  : null;
-const emailConfigured = resendApiKey
-  ? Boolean(emailFrom && mailTo)
-  : Boolean(mailer);
-if (!emailConfigured) {
-  console.warn('Email delivery is disabled. Configure RESEND_API_KEY, EMAIL_FROM, and MAIL_TO, or SMTP_USER and SMTP_PASS.');
-}
+const web3formsAccessKey = process.env.WEB3FORMS_ACCESS_KEY;
+const mailTo = process.env.MAIL_TO;
+const emailConfigured = Boolean(web3formsAccessKey && mailTo);
+if (!emailConfigured) console.warn('Email delivery is disabled. Configure WEB3FORMS_ACCESS_KEY and MAIL_TO.');
 
 async function sendEmail({ name, email, type, message }) {
+  if (!emailConfigured) return false;
   const when = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' });
-  const row = (k, val) => `<tr><td style="padding:6px 16px 6px 0;color:#777">${k}</td><td style="padding:6px 0"><b>${val}</b></td></tr>`;
   const subject = `New ${type} enquiry from ${clean(name)}`;
-  const text = `New enquiry from your portfolio\n\nName: ${name}\nEmail: ${email}\nProject type: ${type}\nReceived: ${when} (IST)\n\nMessage:\n${message}\n`;
-  const html = `<div style="font-family:Arial,sans-serif;max-width:560px"><h2 style="margin:0 0 12px">New ${esc(type)} enquiry</h2>` +
-    `<table>${row('Name', esc(name))}${row('Email', esc(email))}${row('Project type', esc(type))}${row('Received', esc(when) + ' IST')}</table>` +
-    `<p style="margin:16px 0 4px;color:#777">Message</p><p style="white-space:pre-wrap;margin:0">${esc(message)}</p>` +
-    `<p style="margin-top:20px;color:#777;font-size:13px">Press Reply to answer ${esc(name)} directly.</p></div>`;
+  try {
+    const response = await fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        access_key: web3formsAccessKey,
+        subject,
+        from_name: clean(name),
+        email,
+        replyto: email,
+        ccemail: mailTo,
+        message: `Name: ${name}\nEmail: ${email}\nProject type: ${type}\nReceived: ${when} (IST)\n\nMessage:\n${message}`
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
 
-  if (resendApiKey) {
-    if (!emailConfigured) return false;
+    let result;
     try {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from: emailFrom,
-          to: [mailTo],
-          reply_to: `"${clean(name).replace(/"/g, '')}" <${email}>`,
-          subject,
-          text,
-          html
-        }),
-        signal: AbortSignal.timeout(15000)
-      });
-      if (!response.ok) {
-        const details = (await response.text()).slice(0, 500);
-        console.error('Resend email error:', response.status, details);
-        return false;
-      }
-      return true;
-    } catch (err) {
-      console.error('Resend email error:', err.message);
+      result = await response.json();
+    } catch {
+      console.error('Web3Forms email error:', { status: response.status, message: 'Invalid API response' });
       return false;
     }
-  }
 
-  if (!mailer) return false;
-  try {
-    await mailer.sendMail({
-      from: `"Portfolio" <${process.env.SMTP_USER}>`,
-      to: mailTo,
-      replyTo: `"${clean(name).replace(/"/g, '')}" <${email}>`,
-      subject,
-      text,
-      html
-    });
+    if (!response.ok || result.success !== true) {
+      console.error('Web3Forms email error:', {
+        status: response.status,
+        message: typeof result.message === 'string' ? result.message.slice(0, 300) : 'Submission failed'
+      });
+      return false;
+    }
     return true;
   } catch (err) {
-    console.error('Email error:', {
-      message: err.message,
-      code: err.code,
-      command: err.command
-    });
+    console.error('Web3Forms email error:', { message: err.message });
     return false;
   }
 }

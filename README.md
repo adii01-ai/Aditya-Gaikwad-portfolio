@@ -10,26 +10,13 @@
 
 The form only reports success after the configured email provider accepts the message.
 
-### Render Free
+### Web3Forms over HTTPS
 
-Render Free web services block outbound SMTP ports `25`, `465`, and `587`. Use Resend's HTTPS API instead:
+1. Create a Web3Forms access key for the email address that should receive contact inquiries.
+2. Set `WEB3FORMS_ACCESS_KEY` and `MAIL_TO=adityagaikwad4434@gmail.com` in the Render service's Environment settings.
+3. Deploy the latest code and submit a test inquiry. Check Render logs if delivery fails.
 
-1. Create a Resend account and verify a domain you control at https://resend.com/domains.
-2. Create an API key at https://resend.com/api-keys.
-3. Set `RESEND_API_KEY`, `EMAIL_FROM` (for example, `Portfolio <contact@your-verified-domain.com>`), and `MAIL_TO` in the Render service's Environment settings.
-4. Deploy the latest code and submit a test inquiry. Check Render logs if delivery fails.
-
-Never commit the API key. The `EMAIL_FROM` address must use the verified domain. Resend is used whenever `RESEND_API_KEY` is set.
-
-### Local Gmail SMTP (optional)
-
-1. Enable 2-Step Verification on the sending Google account.
-2. Create a Google App Password for this application. Do not use your normal Google password.
-3. Set `SMTP_USER` to the sending Gmail address, `SMTP_PASS` to the App Password, and `MAIL_TO` to `adityagaikwad4434@gmail.com`.
-4. Keep `SMTP_HOST=smtp.gmail.com` and `SMTP_PORT=465`.
-5. Restart the server and send a test inquiry. If SMTP is unavailable, the form keeps the entered information and displays a direct email link instead of claiming it was sent.
-
-For paid hosts that allow outbound SMTP, add the SMTP variables as private service environment variables. Never commit `.env` or an App Password. `MAIL_TO` defaults to `SMTP_USER` if omitted.
+The access key is read only by the server and must never be committed. The server posts submissions to Web3Forms over HTTPS. The visitor's address is used for replies. Web3Forms' optional `ccemail` field is used for `MAIL_TO` and may require a Pro plan.
 
 Messages are also saved in Atlas under `portfolio > messages` when MongoDB is connected.
 Edit projects in portfolio > projects. Set `published` to true to show one.
